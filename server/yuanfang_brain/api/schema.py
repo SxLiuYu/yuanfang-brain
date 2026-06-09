@@ -26,6 +26,7 @@ class WsMessageType(str, Enum):
     ERROR = "error"
     PING = "ping"
     PONG = "pong"
+    WAKE = "wake"
 
 
 class WsMessage(BaseModel):

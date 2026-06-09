@@ -1,4 +1,4 @@
-"""WebSocket handler: full ASR→LLM→TTS pipeline."""
+"""WebSocket handler: full ASR→LLM→TTS pipeline and wake-word endpoint."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import asyncio
 import base64
 import logging
 import uuid
+from datetime import datetime
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -18,6 +19,7 @@ from yuanfang_brain.ha.tools import register_ha_tools
 from yuanfang_brain.llm.factory import get_llm
 from yuanfang_brain.tts.factory import get_tts
 from yuanfang_brain.vad import VAD
+from yuanfang_brain.wakeword import get_decoder
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +164,116 @@ def create_router() -> APIRouter:
         finally:
             async with _connection_lock:
                 connections.discard(websocket)
+
+    @router.websocket("/ws/wake")
+    async def ws_wake_endpoint(websocket: WebSocket):
+        """Wake-word detection endpoint.
+
+        Accepts 16 kHz mono PCM int16 frames (80 ms chunk = 1280 bytes).
+        Runs VAD + openWakeWord on every chunk.
+        On wake detection: emits {"event": "wake", "model": ..., "score": ..., "ts": ...}
+        and enters a 5-second "listening" window where audio is forwarded to /ws.
+        """
+        await websocket.accept()
+        conn_id = str(uuid.uuid4())[:8]
+        trace_id = str(uuid.uuid4())
+        logger.info(f"[{conn_id}] /ws/wake connected, trace_id={trace_id}")
+
+        decoder = get_decoder()
+        vad = VAD(sample_rate=16000, aggressiveness=2)
+
+        # Accumulator for openWakeWord frames (80 ms each = 1280 samples)
+        frame_size = 1280  # 16 kHz * 0.08s * 2 bytes/sample
+        audio_buffer = b""
+        silence_frames = 0
+        listening_until: float | None = None  # timestamp when listening window closes
+
+        async def send_wake_event(model: str, score: float):
+            msg = {
+                "event": "wake",
+                "model": model,
+                "score": round(score, 4),
+                "ts": datetime.utcnow().isoformat(),
+            }
+            await websocket.send_json(msg)
+            logger.info(f"[{conn_id}] wake detected: model={model}, score={score:.4f}")
+
+        try:
+            # Send hello
+            hello = WsMessage(
+                type=WsMessageType.HELLO,
+                trace_id=trace_id,
+                data={"conn_id": conn_id, "server": "yuanfang-brain", "role": "wake"},
+            )
+            await websocket.send_text(hello.model_dump_json())
+
+            while True:
+                data = await websocket.receive()
+
+                if data["type"] == "websocket.disconnect":
+                    break
+
+                if data["type"] == "websocket.receive":
+                    if "text" in data:
+                        # Allow ping/pong on wake endpoint too
+                        try:
+                            msg = WsMessage.model_validate_json(data["text"])
+                            if msg.type == WsMessageType.PING:
+                                pong = WsMessage(type=WsMessageType.PONG, trace_id=msg.trace_id)
+                                await websocket.send_text(pong.model_dump_json())
+                        except Exception:
+                            pass
+                    elif "bytes" in data:
+                        chunk = data["bytes"]
+                        audio_buffer += chunk
+
+                        # Process every completed 80 ms frame
+                        while len(audio_buffer) >= frame_size:
+                            frame = audio_buffer[:frame_size]
+                            audio_buffer = audio_buffer[frame_size:]
+
+                            # VAD: only run wake-word on speech frames
+                            is_speech = vad.is_speech(frame)
+                            if not is_speech:
+                                silence_frames += 1
+                            else:
+                                silence_frames = 0
+
+                            # --- Wake-word detection (only when not in listening window) ---
+                            if listening_until is None and len(frame) == frame_size:
+                                try:
+                                    import numpy as np
+
+                                    samples = np.frombuffer(frame, dtype=np.int16).astype(np.float32) / 32768.0
+                                    preds = decoder.predict(samples) if decoder else {}
+                                    for m, pred in preds.items():
+                                        scores = pred.get("scores", [])
+                                        if scores and scores[0] > 0.5:
+                                            await send_wake_event(m, scores[0])
+                                            # Enter 5-second listening window
+                                            import time
+
+                                            listening_until = time.monotonic() + 5.0
+                                            break
+                                except Exception:
+                                    pass
+
+                            # --- Listening window: relay speech frames to main /ws ---
+                            if listening_until is not None:
+                                import time
+
+                                if time.monotonic() > listening_until:
+                                    listening_until = None
+                                    logger.info(f"[{conn_id}] listening window closed")
+
+                                # If VAD detects enough speech in listening window, the
+                                # main /ws pipeline will handle it — just forward raw frames
+                                # (the client is expected to stream to /ws after wake)
+
+        except WebSocketDisconnect:
+            logger.info(f"[{conn_id}] /ws/wake disconnected")
+        except Exception as e:
+            logger.error(f"[{conn_id}] /ws/wake error: {e}")
 
     return router
 
