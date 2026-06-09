@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList1-0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.yuanfang.brain</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/sxliuyu/.yuanfang-brain-venv/bin/python</string>
+        <string>-m</string>
+        <string>uvicorn</string>
+        <string>yuanfang_brain.main:create_app</string>
+        <string>--factory</string>
+        <string>--host</string>
+        <string>0.0.0.0</string>
+        <string>--port</string>
+        <string>7000</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/sxliuyu/repos/yuanfang-brain/server</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>/Users/sxliuyu/repos/yuanfang-brain/server</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/sxliuyu/.yuanfang-brain/server.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/sxliuyu/.yuanfang-brain/server.log</string>
+</dict>
+</plist>
