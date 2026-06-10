@@ -1,9 +1,12 @@
-"""MiniMax TTS streaming module (t2a_v2)."""
+"""MiniMax TTS streaming module — Coding Plan (sk-cp, OpenAI-compatible).
+
+Uses POST {base}/audio/speech with the OpenAI TTS API shape.
+No group_id required for Coding Plan subscriptions.
+"""
 
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
 from typing import AsyncGenerator
 
@@ -15,39 +18,42 @@ logger = logging.getLogger(__name__)
 
 
 class MiniMaxTTS:
-    """MiniMax text-to-audio streaming via t2a_v2 API."""
+    """MiniMax text-to-audio via Coding Plan (sk-cp) — OpenAI-compatible."""
 
     def __init__(self):
         cfg = get_config()
-        self.api_key = cfg.minimax.api_key
-        self.group_id = cfg.minimax.group_id
-        self.base_url = "https://api.minimax.io/v1"
+        self.api_key = cfg.minimax.resolved_key()
+        # Prefer yaml `base`, fall back to Coding Plan default
+        self.base_url = (
+            getattr(cfg.minimax, "base", "") or "https://api.minimaxi.com/v1"
+        ).rstrip("/")
+        self.model = getattr(cfg.minimax, "tts_model", "speech-01") or "speech-01"
+        # Default voice (OpenAI-style; MiniMax may map or accept)
+        self.default_voice = "alloy"
 
     async def synthesize_stream(
-        self, text: str, voice: str = "male-qn_qingse"
+        self, text: str, voice: str | None = None
     ) -> AsyncGenerator[bytes, None]:
         """Synthesize text to mp3 audio stream, yielding chunks as they arrive."""
         if not self.api_key:
             logger.warning("MiniMax API key not configured, TTS disabled")
             return
 
-        headers = {"Authorization": f"Bearer {self.api_key}"}
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
         payload = {
-            "model": "speech-01",
-            "text": text,
-            "stream": True,
-            "voice_settings": {
-                "voice_id": voice,
-                "speed": 1.0,
-                "pitch": 0,
-                "volume": 0,
-            },
+            "model": self.model,
+            "input": text,
+            "voice": voice or self.default_voice,
+            "response_format": "mp3",
         }
 
         async with httpx.AsyncClient(timeout=60) as client:
             async with client.stream(
                 "POST",
-                f"{self.base_url}/t2a_v2",
+                f"{self.base_url}/audio/speech",
                 headers=headers,
                 json=payload,
             ) as resp:
@@ -56,7 +62,7 @@ class MiniMaxTTS:
                     if chunk:
                         yield chunk
 
-    async def synthesize(self, text: str, voice: str = "male-qn_qingse") -> bytes:
+    async def synthesize(self, text: str, voice: str | None = None) -> bytes:
         """Synthesize text and return full audio bytes."""
         chunks = []
         async for chunk in self.synthesize_stream(text, voice):
