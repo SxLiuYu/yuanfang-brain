@@ -1,6 +1,6 @@
 """WebSocket bridge between the mobile client and the voice pipeline.
 
-Listens on ws://0.0.0.0:7102/ws/audio. For each message of the form
+Listens on ws://0.0.0.0:7103/ws/audio. For each message of the form
     {"type": "audio", "data": "<base64 pcm>", "sr": 16000}
 it runs a tiny energy-based VAD, transcribes the captured speech, parses
 an intent, and replies with synthesized audio.
@@ -16,7 +16,7 @@ import websockets
 from voice import intent, tts_stream
 
 _HOST = "0.0.0.0"
-_PORT = 7102
+_PORT = 7103
 _PATH = "/ws/audio"
 _SR = 16000
 _ENERGY_DB = -38.0          # speech detection threshold in dBFS
