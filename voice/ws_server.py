@@ -60,27 +60,37 @@ async def _handle(ws):
         except json.JSONDecodeError:
             await ws.send(json.dumps({"type": "error", "message": "bad json"}))
             continue
-        if msg.get("type") != "audio":
+        if msg.get("type") == "text":
+            text = msg.get("text", "").strip()
+        elif msg.get("type") == "audio":
+            pcm = base64.b64decode(msg.get("data", ""))
+            segments = _vad_segments(pcm)
+            text = ""
+            if segments:
+                import requests
+                files = {"file": ("audio.wav", segments[0], "audio/wav")}
+                data = {"model": _ASR_MODEL}
+                try:
+                    r = requests.post(_ASR_URL, files=files, data=data, timeout=30)
+                    if r.ok:
+                        text = r.json().get("text", "").strip()
+                except Exception as e:
+                    text = f"__asr_error: {e}"
+        else:
             continue
-
-        pcm = base64.b64decode(msg.get("data", ""))
-        segments = _vad_segments(pcm)
-        text = ""
-        if segments:
-            import requests
-            files = {"file": ("audio.wav", segments[0], "audio/wav")}
-            data = {"model": _ASR_MODEL}
-            r = requests.post(_ASR_URL, files=files, data=data, timeout=30)
-            if r.ok:
-                text = r.json().get("text", "").strip()
 
         intent_obj = intent.parse_intent(text or "...")
         response_text = intent_obj.get("response") or "好的"
-        audio_bytes = tts_stream.tts_speak(response_text)
+        try:
+            audio_bytes = tts_stream.tts_speak(response_text)
+        except Exception as e:
+            audio_bytes = b""
         await ws.send(json.dumps({
             "type": "reply",
             "text": response_text,
             "audio": base64.b64encode(audio_bytes).decode("ascii"),
+            "intent": intent_obj,
+            "transcribed": text,
         }))
 
 
