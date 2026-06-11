@@ -13,7 +13,7 @@ import os
 
 import websockets
 
-from voice import intent, tts_stream
+import intent, tts_stream
 
 _HOST = "0.0.0.0"
 _PORT = 7103
