@@ -2,20 +2,24 @@ Waveshare ESP32-S3-Touch-AMOLED-2.06 二开手册
 (2026-06-11 基于 wiki + 淘宝商品详情 + 2 个 CC 调研报告整合)
 ============================================================
 
-一、硬件真盘
-- MCU: ESP32-S3R8 (Xtensa LX7 双核 240 MHz)
-- 内存: 512KB SRAM + 8MB PSRAM + 32MB Flash
-- 屏幕: 2.06" AMOLED 410×502, CO5300 QSPI
-- 触屏: FT3168 I2C
-- IMU: QMI8658 (6 轴)
-- RTC: PCF85063 (新发现)
-- PMU: AXP2101
-- 音频: ES8311 codec + ES7210 ADC + 板载麦 + 双麦克风 + 扬声器
-- 存储: TF 卡槽 (SDMMC, GPIO1/2/3/17)
+一、硬件真盘 (Waveshare 官方详情 + 2026-06-12 真读商品图)
+- MCU: ESP32-S3R8 (Xtensa LX7 双核 240MHz)
+- 内存: 512KB SRAM + 384KB ROM + 8MB PSRAM (stacked) + 32MB Flash (external)
+- 无线: 2.4GHz Wi-Fi 802.11 b/g/n + Bluetooth 5 LE + 板载天线
+- 屏幕: 2.06" AMOLED 410×502 16.7M 色, CO5300 QSPI 驱动
+- 触屏: FT3168 电容触屏, I2C
+- IMU: QMI8658 (3 轴加速 + 3 轴陀螺, 计步)
+- RTC: PCF85063 (AXP2101 不间断供电)
+- PMU: AXP2101 (高效电源管理)
+- 音频: ES8311 codec + ES7210 ADC (AEC) + 板载麦 + 双麦克风 + 扬声器
+- 电池: 3.7V MX1.25 锂电池充放电接口 (1.25mm 间距 JST)
 - 物理: Type-C USB + PWR 按键(GPIO10) + BOOT 按键(GPIO0) + 双麦克风 + 扬声器
+- 存储: TF 卡槽 (SDMMC, GPIO1/2/3/17)
+- 扩展 pads: 1× I2C + 1× UART + 1× USB
 - 表带槽: 22mm 平头(可换普通 22mm 表带)
 - 厂商: Waveshare / 微雪电子
 - 淘宝: 1688 offerId=953950964185, ¥45-56
+- 板子尺寸: 42.00 × 22.00 × 12.90 mm
 
 二、完整引脚定义(2026-06-11 最新确认)
 LCD (QSPI):
